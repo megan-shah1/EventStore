@@ -7,6 +7,7 @@ using EventStore.Core.Bus;
 using EventStore.Core.Data;
 using EventStore.Core.Messages;
 using EventStore.Core.Messaging;
+using EventStore.Core.Synchronization;
 using EventStore.Core.TransactionLog.Chunks;
 using EventStore.Core.TransactionLog.Scavenging;
 using Serilog;
@@ -28,16 +29,20 @@ namespace EventStore.Core.Services.Storage {
 		// invariant: _currentScavenge is not null => _currentScavengeTask is the task of the current scavenge
 		private Task _currentScavengeTask;
 		private CancellationTokenSource _cancellationTokenSource;
+		private IExclusiveLock _switchChunksLock;
 
 		public StorageScavenger(
 			ITFChunkScavengerLogManager logManager,
-			ScavengerFactory scavengerFactory) {
+			ScavengerFactory scavengerFactory,
+			IExclusiveLock switchChunksLock) {
 
-			Ensure.NotNull(logManager, "logManager");
-			Ensure.NotNull(scavengerFactory, "scavengerFactory");
+			Ensure.NotNull(logManager, nameof(logManager));
+			Ensure.NotNull(scavengerFactory, nameof(scavengerFactory));
+			Ensure.NotNull(switchChunksLock, nameof(switchChunksLock));
 
 			_logManager = logManager;
 			_scavengerFactory = scavengerFactory;
+			_switchChunksLock = switchChunksLock;
 		}
 
 		public void Handle(SystemMessage.StateChangeMessage message) {
@@ -53,6 +58,10 @@ namespace EventStore.Core.Services.Storage {
 						message.Envelope.ReplyWith(new ClientMessage.ScavengeDatabaseResponse(message.CorrelationId,
 							ClientMessage.ScavengeDatabaseResponse.ScavengeResult.InProgress,
 							_currentScavenge.ScavengeId));
+					} else if (!_switchChunksLock.TryAcquire()) {
+						message.Envelope.ReplyWith(new ClientMessage.ScavengeDatabaseResponse(message.CorrelationId,
+							ClientMessage.ScavengeDatabaseResponse.ScavengeResult.InProgress,
+							Guid.Empty.ToString()));
 					} else {
 						var tfChunkScavengerLog = _logManager.CreateLog();
 						var logger = Log.ForContext("ScavengeId", tfChunkScavengerLog.ScavengeId);
@@ -123,6 +132,12 @@ namespace EventStore.Core.Services.Storage {
 				} catch (Exception ex) {
 					logger.Error(ex, "SCAVENGING: Unexpected error when disposing the scavenger");
 				}
+			}
+
+			try {
+				_switchChunksLock.TryRelease();
+			} catch (Exception ex) {
+				logger.Error(ex, "SCAVENGING: Unexpected error when releasing the chunks switch semaphore.");
 			}
 
 			lock (_lock) {

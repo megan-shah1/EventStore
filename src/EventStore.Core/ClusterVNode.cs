@@ -52,6 +52,7 @@ using EventStore.Core.Authorization;
 using EventStore.Core.Caching;
 using EventStore.Core.Certificates;
 using EventStore.Core.Cluster;
+using EventStore.Core.Synchronization;
 using EventStore.Core.TransactionLog.Checkpoint;
 using EventStore.Core.TransactionLog.FileNamingStrategy;
 using EventStore.Core.Util;
@@ -105,6 +106,7 @@ namespace EventStore.Core {
 		abstract public Func<X509Certificate2> CertificateSelector { get; }
 		abstract public Func<X509Certificate2Collection> IntermediateCertificatesSelector { get; }
 		abstract public bool DisableHttps { get; }
+		abstract public bool EnableUnixSockets { get; }
 		abstract public void Start();
 		abstract public Task<ClusterVNode> StartAsync(bool waitUntilRead);
 		abstract public Task StopAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default);
@@ -174,6 +176,7 @@ namespace EventStore.Core {
 		private readonly IAuthenticationProvider _authenticationProvider;
 		private readonly IAuthorizationProvider _authorizationProvider;
 		private readonly IReadIndex<TStreamId> _readIndex;
+		private readonly SemaphoreSlimLock _switchChunksLock = new();
 
 		private readonly InMemoryBus[] _workerBuses;
 		private readonly MultiQueuedHandler _workersHandler;
@@ -204,6 +207,7 @@ namespace EventStore.Core {
 		public override Func<X509Certificate2> CertificateSelector => _certificateSelector;
 		public override Func<X509Certificate2Collection> IntermediateCertificatesSelector => _intermediateCertsSelector;
 		public override bool DisableHttps => _disableHttps;
+		public sealed override bool EnableUnixSockets => OperatingSystem.IsLinux() || OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17063);
 
 #if DEBUG
 		public TaskCompletionSource<bool> _taskAddedTrigger = new TaskCompletionSource<bool>();
@@ -1065,6 +1069,9 @@ namespace EventStore.Core {
 
 				if (options.Interface.EnableTrustedAuth)
 					httpAuthenticationProviders.Add(new TrustedHttpAuthenticationProvider());
+
+				if (EnableUnixSockets)
+					httpAuthenticationProviders.Add(new UnixSocketAuthenticationProvider());
 			}
 
 			//default authentication provider
@@ -1410,7 +1417,8 @@ namespace EventStore.Core {
 
 			var storageScavenger = new StorageScavenger(
 				logManager: scavengerLogManager,
-				scavengerFactory: scavengerFactory);
+				scavengerFactory: scavengerFactory,
+				switchChunksLock: _switchChunksLock);
 
 			// ReSharper disable RedundantTypeArgumentsOfMethod
 			_mainBus.Subscribe<ClientMessage.ScavengeDatabase>(storageScavenger);
@@ -1418,6 +1426,13 @@ namespace EventStore.Core {
 			_mainBus.Subscribe<ClientMessage.GetDatabaseScavenge>(storageScavenger);
 			_mainBus.Subscribe<SystemMessage.StateChangeMessage>(storageScavenger);
 			// ReSharper restore RedundantTypeArgumentsOfMethod
+
+			// REDACTION
+			var redactionService = new RedactionService<TStreamId>(Db, _readIndex, _switchChunksLock);
+			_mainBus.Subscribe<RedactionMessage.GetEventPosition>(redactionService);
+			_mainBus.Subscribe<RedactionMessage.SwitchChunkLock>(redactionService);
+			_mainBus.Subscribe<RedactionMessage.SwitchChunk>(redactionService);
+			_mainBus.Subscribe<RedactionMessage.SwitchChunkUnlock>(redactionService);
 
 			// TIMER
 			_timeProvider = new RealTimeProvider();
@@ -1680,6 +1695,7 @@ namespace EventStore.Core {
 
 			cts.CancelAfter(timeout.Value);
 			await _shutdownSource.Task.ConfigureAwait(false);
+			_switchChunksLock?.Dispose();
 		}
 
 		public void Handle(SystemMessage.StateChangeMessage message) {
