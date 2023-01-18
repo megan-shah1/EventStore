@@ -6,7 +6,8 @@
 	"StatusTrackers": [
 		"Index",
 		"Node",
-		"Scavenge"
+		"Scavenge",
+		"Startup"
 	],
 
 	"Checkpoints": [

@@ -16,6 +16,7 @@ public class Trackers {
 	public INodeStatusTracker NodeStatusTracker { get; set; } = new NodeStatusTracker.NoOp();
 	public IScavengeStatusTracker ScavengeStatusTracker { get; set; } = new ScavengeStatusTracker.NoOp();
 	public GrpcTrackers GrpcTrackers { get; } = new();
+	public IStartupStatusTracker StartupStatusTracker { get; set; } = new StartupStatusTracker.NoOp();
 }
 
 public class GrpcTrackers {
@@ -68,6 +69,8 @@ public static class MetricsBootstrapper {
 				trackers.NodeStatusTracker = new NodeStatusTracker(statusMetric);
 			if (conf.StatusTrackers.Contains(Conf.StatusTracker.Scavenge))
 				trackers.ScavengeStatusTracker = new ScavengeStatusTracker(statusMetric);
+			if (conf.StatusTrackers.Contains(Conf.StatusTracker.Startup))
+				trackers.StartupStatusTracker = new StartupStatusTracker(statusMetric);
 		}
 
 		var durationMetric = new DurationMetric(coreMeter, "eventstore-duration");

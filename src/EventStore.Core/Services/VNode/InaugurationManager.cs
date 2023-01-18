@@ -30,6 +30,7 @@ namespace EventStore.Core.Services.VNode {
 		private int _currentEpochNumber;
 		private long _replicationCheckpointTarget;
 		private long _indexCheckpointTarget;
+		private readonly IStartupStatusTracker _startupTracker;
 
 		private enum ManagerState {
 			Initial,
@@ -42,12 +43,14 @@ namespace EventStore.Core.Services.VNode {
 		public InaugurationManager(
 			IPublisher publisher,
 			IReadOnlyCheckpoint replicationCheckpoint,
-			IReadOnlyCheckpoint indexCheckpoint) {
+			IReadOnlyCheckpoint indexCheckpoint,
+			IStartupStatusTracker startupTracker) {
 
 			_log.Information("Using {name}", nameof(InaugurationManager));
 			_publisher = publisher;
 			_replicationCheckpoint = replicationCheckpoint;
 			_indexCheckpoint = indexCheckpoint;
+			_startupTracker = startupTracker;
 
 			_scheduleCheckInaugurationConditions = TimerMessage.Schedule.Create(
 				triggerAfter: TimeSpan.FromSeconds(1),
@@ -84,6 +87,10 @@ namespace EventStore.Core.Services.VNode {
 				_managerState = ManagerState.Initial;
 			}
 
+			if (received is SystemMessage.BecomeFollower || received is SystemMessage.BecomeReadOnlyReplica) {
+			    _startupTracker.OnStateChange(VNodeStartupState.Complete);
+			}
+
 			_nodeState = received.State;
 		}
 
@@ -104,6 +111,7 @@ namespace EventStore.Core.Services.VNode {
 					"currentEpochNumber {currentEpochNumber}.",
 					_currentEpochNumber);
 				_managerState = ManagerState.WritingEpoch;
+				_startupTracker.OnStateChange(VNodeStartupState.ChaserCaughtUp);
 			}
 		}
 
@@ -126,6 +134,7 @@ namespace EventStore.Core.Services.VNode {
 				// and index past it too, to the $epoch-information event that immediately follows it
 				_indexCheckpointTarget = received.Epoch.EpochPosition + 1;
 
+				_startupTracker.OnStateChange(VNodeStartupState.WaitingForConditions);
 				ConsiderBecomingLeader(received, log: true);
 				_publisher.Publish(_scheduleCheckInaugurationConditions);
 			}
@@ -186,6 +195,7 @@ namespace EventStore.Core.Services.VNode {
 					"Correlation id {currentCorrelationId}",
 					_stateCorrelationId);
 				_managerState = ManagerState.Initial;
+				_startupTracker.OnStateChange(VNodeStartupState.Complete);
 			}
 		}
 
