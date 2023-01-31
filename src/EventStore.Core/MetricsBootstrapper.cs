@@ -40,6 +40,7 @@ public static class MetricsBootstrapper {
 		Trackers trackers) {
 
 		var coreMeter = new Meter("EventStore.Core", version: "0.0.1");
+		GossipTrackers.Default.CoreMeter = coreMeter;
 
 		// checkpoints
 		_ = new CheckpointMetric(

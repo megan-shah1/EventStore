@@ -19,6 +19,7 @@ using ILogger = Serilog.ILogger;
 namespace EventStore.Core.Services.Transport.Http.Controllers {
 	public class GossipController : CommunicationController {
 		private static readonly ILogger Log = Serilog.Log.ForContext<GossipController>();
+		private static readonly GossipStatsCollector Collector = GossipTrackers.Default.Create("Http");
 
 		private static readonly ICodec[] SupportedCodecs = new ICodec[]
 			{Codec.Json, Codec.ApplicationXml, Codec.Xml, Codec.Text};
@@ -36,9 +37,13 @@ namespace EventStore.Core.Services.Transport.Http.Controllers {
 		}
 
 		private void OnGetGossip(HttpEntityManager entity, UriTemplateMatch match) {
+			var duration = Collector.StartRequest();
 			var sendToHttpEnvelope = new SendToHttpEnvelope(
 				_networkSendQueue, entity, Format.SendPublicGossip,
-				(e, m) => Configure.Ok(e.ResponseCodec.ContentType, Helper.UTF8NoBom, null, null, false));
+				(e, m) => {
+					duration.Dispose();
+					return Configure.Ok(e.ResponseCodec.ContentType, Helper.UTF8NoBom, null, null, false);
+				});
 			Publish(new GossipMessage.ClientGossip(sendToHttpEnvelope));
 		}
 	}

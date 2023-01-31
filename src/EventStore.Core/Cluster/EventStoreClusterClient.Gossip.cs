@@ -13,6 +13,7 @@ using GossipEndPoint = EventStore.Cluster.EndPoint;
 namespace EventStore.Core.Cluster {
 	public partial class EventStoreClusterClient {
 		private static readonly ILogger Log = Serilog.Log.ForContext<EventStoreClusterClient>();
+		private static readonly GossipStatsCollector Tracker = GossipTrackers.Default.Create("Cluster");
 
 		public void SendGossip(GossipMessage.SendGossip sendGossip, EndPoint destinationEndpoint, DateTime deadline) {
 			SendGossipAsync(sendGossip.ClusterInfo, sendGossip.ServerEndPoint, deadline).ContinueWith(
@@ -27,12 +28,15 @@ namespace EventStore.Core.Cluster {
 		}
 
 		public void GetGossip(EndPoint destinationEndpoint, DateTime deadline) {
+			var duration = Tracker.StartRequest();
 			GetGossipAsync(deadline).ContinueWith(async response => {
 				try {
 					_bus.Publish(new GossipMessage.GetGossipReceived(await response.ConfigureAwait(false),
 						destinationEndpoint));
 				} catch (Exception ex) {
 					_bus.Publish(new GossipMessage.GetGossipFailed(ex.Message, destinationEndpoint));
+				} finally {
+					duration.Dispose();
 				}
 			});
 		}
