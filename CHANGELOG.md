@@ -4,18 +4,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
-- Whitespace [EventStore#3649](https://github.com/EventStore/EventStore/pull/3649)
-- Patch Newtonsoft from `13.0.1` to `13.0.2` [EventStore#3677](https://github.com/EventStore/EventStore/pull/3677)
 - Improved synchronization during TFChunk disposal [EventStore#3674](https://github.com/EventStore/EventStore/pull/3674)
-- Slow persistent subscription consumer no longer slows down other subscribers [EventStore#3701](https://github.com/EventStore/EventStore/pull/3701)
 - Fix projection progress report. [EventStore#3655](https://github.com/EventStore/EventStore/pull/3655)
 - Cancel reads already in the reader queues when the gRPC call is cancelled [EventStore#3718](https://github.com/EventStore/EventStore/pull/3718)
 - too strict cleanup condition causing a memory leak in rare cases when server becomes unresponsive. [EventStore#3705](https://github.com/EventStore/EventStore/pull/3705)
 - cancelation of current command. [EventStore#3705](https://github.com/EventStore/EventStore/pull/3705)
 
 ### Added
-- Improvements to Scavenge HTTP API (query if scavenge is running, stop any running scavenge) [EventStore#3656](https://github.com/EventStore/EventStore/pull/3656)
-- ScavengeId to log context [EventStore#3656](https://github.com/EventStore/EventStore/pull/3656)
 - Source generator for dynamic message type ids [EventStore#3684](https://github.com/EventStore/EventStore/pull/3684)
 - checkpoints metric [EventStore#3685](https://github.com/EventStore/EventStore/pull/3685)
 - metric for tracking the current state of the Node [EventStore#3686](https://github.com/EventStore/EventStore/pull/3686)
@@ -23,7 +18,6 @@ All notable changes to this project will be documented in this file.
 - metric for tracking the current state of the Index operations (merge/scavenge) [EventStore#3686](https://github.com/EventStore/EventStore/pull/3686)
 - Histograms for gRPC reads and appends [EventStore#3695](https://github.com/EventStore/EventStore/pull/3695)
 - a process-wide stopwatch for measuring durations [EventStore#3703](https://github.com/EventStore/EventStore/pull/3703)
-- more information to SLOW QUEUE MSG logs for reads and writes [EventStore#3706](https://github.com/EventStore/EventStore/pull/3706)
 - log errors for gRPC write flood. [EventStore#3705](https://github.com/EventStore/EventStore/pull/3705)
 
 ### Changed
@@ -36,7 +30,20 @@ All notable changes to this project will be documented in this file.
 ### Removed
 - Unnecessary allocation on read [EventStore#3691](https://github.com/EventStore/EventStore/pull/3691)
 
-### changed
+## [22.10.1] - 2023-01-31
+
+### Fixed
+- Whitespace [EventStore#3649](https://github.com/EventStore/EventStore/pull/3649)
+- Patch Newtonsoft from `13.0.1` to `13.0.2` [EventStore#3677](https://github.com/EventStore/EventStore/pull/3677)
+- Database checkpoints becomes inconsistent when running out of disk space [EventStore#3681](https://github.com/EventStore/EventStore/pull/3681)
+- Slow persistent subscription consumer no longer slows down other subscribers [EventStore#3701](https://github.com/EventStore/EventStore/pull/3701)
+
+### Added
+- Improvements to Scavenge HTTP API (query if scavenge is running, stop any running scavenge) [EventStore#3656](https://github.com/EventStore/EventStore/pull/3656)
+- ScavengeId to log context [EventStore#3656](https://github.com/EventStore/EventStore/pull/3656)
+- More information to SLOW QUEUE MSG logs for reads and writes [EventStore#3706](https://github.com/EventStore/EventStore/pull/3706)
+
+### Changed
 - Use version 22.10 in the docs [EventStore#3714](https://github.com/EventStore/EventStore/pull/3714)
 
 ## [21.10.9] - 2022-11-21
